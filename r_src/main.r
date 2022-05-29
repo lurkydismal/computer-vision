@@ -1,14 +1,21 @@
-dyn.load("test.so")
+dyn.load("matching.so")
 
-x <- 1:3
+match_method         <- 1
+source_window_handle <- 2
+template_images      <- "template_images"
+search_results       <- 3:1
+show_result          <- FALSE
 
 ret_val <- .C(
-    "test",
-    n = length(x),
-    as.double(x)
+    "test"
+    # match_method = as.integer(match_method),
+    # source_window_handle = as.integer(source_window_handle),
+    # template_images = template_images,
+    # search_results = as.double(search_results),
+    # show_result = show_result
 )
 
-x
-ret_val
-ret_val$n
-ret_val[[2]]
+# search_results
+# ret_val
+# ret_val$show_result
+# ret_val[[2]]

@@ -2,16 +2,28 @@
 /// @file opencv.cpp
 /// @brief \c MatchingMethod and \c MatchingMethodWindow definition.
 ///////////////
+#ifdef __WIN32__
+#include <windows.h>
+#else
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/XShm.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#endif
 
-#include <opencv5/opencv2/imgcodecs.hpp>
-#include <opencv5/opencv2/highgui.hpp>
-#include <opencv5/opencv2/imgproc.hpp>
-#include <thread>
+#include <opencv4/opencv2/imgcodecs.hpp>
+#include <opencv4/opencv2/highgui.hpp>
+#include <opencv4/opencv2/imgproc.hpp>
 #include <fmt/core.h>
 
+#include <stdexcept>
+#include <thread>
+#include <cstdint>
 #include <cstring>
-#include <array>
+#include <string>
 #include <vector>
+#include <array>
 #include <map>
 #include <iterator>
 
@@ -21,26 +33,26 @@
 /// @endcode
 //! <b>[define]</b>
 
+#ifdef __WIN32__
 ///////////////
 /// @brief Get cv::Mat object from window capture.
-/// @param[in] _sourceWindowHandle Window handle to capture from.
+/// @param[in] _sourceWindowName Window handle to capture from.
 /// @return Window capture.
 ///////////////
-// HWND
-static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
-    #ifdef __WIN32__
+static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
+    HWND l_sourceWindowHandle = FindWindow( NULL, _sourceWindowName.c_str() );
     //! <b>[declare]</b>
     /// Local variables.
     /// @code{.cpp}
     cv::Mat l_sourceImage;
-    BITMAPINFOHEADER bitmapInfo;
+    BITMAPINFOHEADER l_bitmapInfo;
     /// @endcode
     //! <b>[declare]</b>
 
     //! <b>[window_info]</b>
     /// Get window parameters.
     /// @code{.cpp}
-    HDC l_handleWindowDeviceContext           = GetDC( _sourceWindowHandle );
+    HDC l_handleWindowDeviceContext           = GetDC( l_sourceWindowHandle );
     HDC l_handleWindowCompatibleDeviceContext = CreateCompatibleDC( l_handleWindowDeviceContext );
 
     SetStretchBltMode(
@@ -49,8 +61,9 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     );
 
     RECT l_windowSize;
+
     GetClientRect(
-        _sourceWindowHandle,
+        l_sourceWindowHandle,
         &l_windowSize
     );
 
@@ -75,23 +88,23 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     //! <b>[bitmap]</b>
     /// Create and assign values.
     /// @code{.cpp}
-    HBITMAP handleBitmapWindow = CreateCompatibleBitmap(
+    HBITMAP l_handleBitmapWindow = CreateCompatibleBitmap(
         l_handleWindowDeviceContext,
         l_strechWidth,
         l_strechHeight
     );
 
-    bitmapInfo.biSize          = sizeof( BITMAPINFOHEADER );
-    bitmapInfo.biWidth         = l_strechWidth;
-    bitmapInfo.biHeight        = -l_strechHeight; // This is the line that makes it draw upside down or not
-    bitmapInfo.biPlanes        = 1;
-    bitmapInfo.biBitCount      = 32;
-    bitmapInfo.biCompression   = BI_RGB;
-    bitmapInfo.biSizeImage     = 0;
-    bitmapInfo.biXPelsPerMeter = 0;
-    bitmapInfo.biYPelsPerMeter = 0;
-    bitmapInfo.biClrUsed       = 0;
-    bitmapInfo.biClrImportant  = 0;
+    l_bitmapInfo.biSize          = sizeof( BITMAPINFOHEADER );
+    l_bitmapInfo.biWidth         = l_strechWidth;
+    l_bitmapInfo.biHeight        = -l_strechHeight; // This is the line that makes it draw upside down or not
+    l_bitmapInfo.biPlanes        = 1;
+    l_bitmapInfo.biBitCount      = 32;
+    l_bitmapInfo.biCompression   = BI_RGB;
+    l_bitmapInfo.biSizeImage     = 0;
+    l_bitmapInfo.biXPelsPerMeter = 0;
+    l_bitmapInfo.biYPelsPerMeter = 0;
+    l_bitmapInfo.biClrUsed       = 0;
+    l_bitmapInfo.biClrImportant  = 0;
     /// @endcode
     //! <b>[bitmap]</b>
 
@@ -100,7 +113,7 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     /// @code{.cpp}
     SelectObject(
         l_handleWindowCompatibleDeviceContext,
-        handleBitmapWindow
+        l_handleBitmapWindow
     );
     /// @endcode
 
@@ -121,15 +134,15 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     );
     /// @endcode
 
-    /// Copy from l_handleWindowCompatibleDeviceContext to handleBitmapWindow.
+    /// Copy from l_handleWindowCompatibleDeviceContext to l_handleBitmapWindow.
     /// @code{.cpp}
     GetDIBits(
         l_handleWindowCompatibleDeviceContext,
-        handleBitmapWindow,
+        l_handleBitmapWindow,
         0,
         l_strechHeight,
         l_sourceImage.data,
-        (BITMAPINFO*)&bitmapInfo,
+        (BITMAPINFO*)&l_bitmapInfo,
         DIB_RGB_COLORS
     );
     /// @endcode
@@ -138,10 +151,10 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     //! <b>[clean]</b>
     /// Avoid memory leak.
     /// @code{.cpp}
-    DeleteObject( handleBitmapWindow );
+    DeleteObject( l_handleBitmapWindow );
     DeleteDC( l_handleWindowCompatibleDeviceContext );
     ReleaseDC(
-        _sourceWindowHandle,
+        l_sourceWindowHandle,
         l_handleWindowDeviceContext
     );
     /// @endcode
@@ -151,6 +164,7 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     /// Convert source image to template's color format.
     /// @code{.cpp}
     cv::Mat t_l_image;
+
     cv::cvtColor(
         l_sourceImage,
         t_l_image,
@@ -165,37 +179,180 @@ static cv::Mat getMatFromWindow( uint32_t _sourceWindowHandle ) {
     return ( t_l_image );
     /// @endcode
     //! <b>[return]</b>
-    #else
-    return ( cv::Mat{} );
-    #endif
 }
+
+#else
+
+static Window windowSearch(
+    Display*    _display,
+    Window      _defaultWindow,
+    std::string _windowName
+) {
+    Window l_window = 0;
+    Window l_root;
+    Window l_parent;
+    Window* l_children;
+    uint32_t l_childrenCount;
+    char* l_name = NULL;
+
+    if ( XFetchName( _display, _defaultWindow, &l_name ) ) {
+        bool l_isNeedle = ( _windowName == l_name );
+
+        XFree( l_name );
+
+        if ( l_isNeedle ) {
+            return ( _defaultWindow );
+        }
+    }
+
+    if (
+        XQueryTree(
+            _display,
+            _defaultWindow,
+            &l_root,
+            &l_parent,
+            &l_children,
+            &l_childrenCount
+        )
+    ) {
+        for ( unsigned i = 0; i < l_childrenCount; ++i ) {
+            l_window = windowSearch( _display, l_children[ i ], _windowName );
+
+            if ( l_window ) {
+                break;
+            }
+        }
+
+        XFree( l_children );
+    }
+
+    return ( l_window );
+}
+
+static Window getWindowCapture( std::string _windowName ) {
+    Display* l_display = XOpenDisplay( NULL );
+
+    Window l_window = windowSearch(
+        l_display,
+        XDefaultRootWindow( l_display ),
+        _windowName
+    );
+
+    XCloseDisplay( l_display );
+
+    return ( l_window );
+}
+
+static cv::Mat getMatFromWindow(
+    std::string    _sourceWindowName,
+    const uint32_t _captureWidth  = ( 800 >> 0 ),
+    const uint32_t _captureHeight = ( 600 >> 0 )
+) {
+
+    Display* l_display = XOpenDisplay( NULL );
+    Window l_root = getWindowCapture( _sourceWindowName );
+    XWindowAttributes l_windowAttributes;
+
+    XGetWindowAttributes(
+        l_display,
+        l_root,
+        &l_windowAttributes
+    );
+
+    Screen* l_screen = l_windowAttributes.screen;
+    XShmSegmentInfo l_shminfo;
+
+    XImage* l_xImage = XShmCreateImage(
+        l_display,
+        DefaultVisualOfScreen( l_screen ),
+        DefaultDepthOfScreen( l_screen ),
+        ZPixmap,
+        NULL,
+        &l_shminfo,
+        _captureWidth,
+        _captureHeight
+    );
+
+    l_shminfo.shmid = shmget(
+        IPC_PRIVATE,
+        ( l_xImage->bytes_per_line * l_xImage->height ),
+        ( IPC_CREAT | 0777 )
+    );
+    l_shminfo.shmaddr = l_xImage->data = (char*)shmat( l_shminfo.shmid, 0, 0 );
+    l_shminfo.readOnly = false;
+
+    if ( !l_shminfo.shmid ) {
+        puts("Fatal shminfo error!");
+    }
+
+    XShmAttach( l_display, &l_shminfo );
+
+    XShmGetImage(
+        l_display,
+        l_root,
+        l_xImage,
+        0,
+        0,
+        0x00ffffff
+    );
+
+    cv::Mat l_image = cv::Mat(
+        _captureHeight,
+        _captureWidth,
+        CV_8UC4,
+        l_xImage->data
+    );
+
+    //! <b>[color]</b>
+    /// Convert source image to template's color format.
+    /// @code{.cpp}
+    cv::Mat t_l_image;
+
+    cv::cvtColor(
+        l_image,
+        t_l_image,
+        cv::COLOR_RGB2BGR
+    );
+    /// @endcode
+    //! <b>[color]</b>
+
+    XShmDetach( l_display, &l_shminfo );
+    XDestroyImage( l_xImage );
+    shmdt( l_shminfo.shmaddr );
+    XCloseDisplay( l_display );
+
+    //! <b>[return]</b>
+    /// End of function.
+    /// @code{.cpp}
+    return ( t_l_image );
+    /// @endcode
+    //! <b>[return]</b>
+}
+
+#endif
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
-/// @param[in] _match_method Parameter specifying the comparison method, see cv::TemplateMatchModes.
+/// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _image 2D image array where the search is running. It must be 8-bit or 32-bit floating-point.
-/// @param[in] _templateImages_v Searched template. It must be not greater than the source image and have the same data type.
+/// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
-/// @param[in] _image_display 2D image array with printed rectangles of found images.
-/// @param[in] _templateMap Map of comparison results. Check the "0" field for errors.
+/// @param[in] _imageDisplay 2D image array with printed rectangles of found images.
+/// @param[in] _templateMap Map of comparison results. Throws ios_base::failure at error.
 ///////////////
 static void MatchTemplates(
-    unsigned int _match_method,
+    unsigned int _matchMethod,
     cv::Mat _image,
-    std::vector< char* > _templateImages_v,
+    std::vector< std::string > _templateImages,
     const bool _showResult,
-    cv::Mat& _image_display,
+    cv::Mat& _imageDisplay,
     std::map< std::string, std::array< unsigned int, 2 > >& _templateMap
 ) {
     //! <b>[check_image]</b>
     /// Return FAILED if 2D image array is empty.
     /// @code{.cpp}
     if ( _image.empty() ) {
-        fmt::print( "Can't read source image\n" );
-
-        _templateMap[ "0" ] = { 1, 1 };
-
-        return;
+        throw std::ios_base::failure( "Can't read source image" );
     }
     /// @endcode
     //! <b>[check_image]</b>
@@ -203,7 +360,7 @@ static void MatchTemplates(
     //! <b>[copy_source]</b>
     /// Source image to display.
     /// @code{.cpp}
-    _image.copyTo( _image_display );
+    _image.copyTo( _imageDisplay );
     /// @endcode
     //! <b>[copy_source]</b>
 
@@ -216,7 +373,7 @@ static void MatchTemplates(
     /// @endcode
     //! <b>[create_window]</b>
 
-    auto MatchTemplate = [ & ]( char* _templateImage ) {
+    auto MatchTemplate = [ & ]( std::string _templateImage ) {
         //! <b>[declare]</b>
         /// 2D image array for result.
         /// @code{.cpp}
@@ -240,12 +397,9 @@ static void MatchTemplates(
         //! <b>[create_result_array]</b>
         /// Create the result 2D image array.
         /// @code{.cpp}
-        int l_resultImage_cols = ( _image.cols - l_templateImage.cols + 1 );
-        int l_resultImage_rows = ( _image.rows - l_templateImage.rows + 1 );
-
         l_resultImage.create(
-            l_resultImage_rows,
-            l_resultImage_cols,
+            ( _image.rows - l_templateImage.rows + 1 ),
+            ( _image.cols - l_templateImage.cols + 1 ),
             CV_32FC1
         );
         /// @endcode
@@ -255,10 +409,10 @@ static void MatchTemplates(
         /// Do Matching.
         /// @code{.cpp}
         cv::matchTemplate(
-            _image,                          // Source
-            l_templateImage,                 // Destination
+            _image,          // Source
+            l_templateImage, // Destination
             l_resultImage,
-            _match_method
+            _matchMethod
         );
         /// @endcode
         //! <b>[match_template]</b>
@@ -267,8 +421,8 @@ static void MatchTemplates(
         /// Do Normalize.
         /// @code{.cpp}
         cv::normalize(
-            l_resultImage,                        // Source
-            l_resultImage,                        // Destination
+            l_resultImage, // Source
+            l_resultImage, // Destination
             0,
             1,
             cv::NORM_MINMAX,
@@ -281,8 +435,10 @@ static void MatchTemplates(
         //! <b>[best_match]</b>
         /// Localizing the best match with minMaxLoc.
         /// @code{.cpp}
-        double l_minimumValue, l_maximumValue;
-        cv::Point l_minimumLocation, l_maximumLocation;
+        double l_minimumValue;
+        double l_maximumValue;
+        cv::Point l_minimumLocation;
+        cv::Point l_maximumLocation;
         cv::Point l_matchLocation;
 
         cv::minMaxLoc(
@@ -299,7 +455,7 @@ static void MatchTemplates(
         //! <b>[match_loc]</b>
         /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better.
         /// @code{.cpp}
-        if( ( _match_method  == cv::TM_SQDIFF ) || ( _match_method == cv::TM_SQDIFF_NORMED ) ) {
+        if ( ( _matchMethod  == cv::TM_SQDIFF ) || ( _matchMethod == cv::TM_SQDIFF_NORMED ) ) {
             l_matchLocation = l_minimumLocation;
 
         } else {
@@ -312,7 +468,7 @@ static void MatchTemplates(
         /// Draw rectangles on images.
         /// @code{.cpp}
         cv::rectangle(
-            _image_display,
+            _imageDisplay,
             l_matchLocation,
             cv::Point(
                 ( l_matchLocation.x + l_templateImage.cols ),
@@ -344,9 +500,8 @@ static void MatchTemplates(
     /// @code{.cpp}
     std::vector< std::thread > l_matchTemplateThreads;
     cv::Point l_matchedLocation;
-    _templateMap[ "0" ] = { 1, 1 };
 
-    for ( auto _templateImage : _templateImages_v ) {
+    for ( auto _templateImage : _templateImages ) {
         l_matchTemplateThreads.push_back(
             std::thread( [ &, _templateImage ]{
                 l_matchedLocation = MatchTemplate( _templateImage );
@@ -368,16 +523,16 @@ static void MatchTemplates(
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
-/// @param[in] _match_method Parameter specifying the comparison method, see cv::TemplateMatchModes.
+/// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _sourceImage Image where the search is running. It must be 8-bit or 32-bit floating-point.
-/// @param[in] _templateImages_v Searched template. It must be not greater than the source image and have the same data type.
+/// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
-/// @return Map of comparison results. Check the "0" field for errors.
+/// @return Map of comparison results. Throws ios_base::failure at error.
 ///////////////
 extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod(
-    unsigned int _match_method,
+    unsigned int _matchMethod,
     char* _sourceImage,
-    std::vector< char* > _templateImages_v,
+    std::vector< std::string > _templateImages,
     const bool _showResult
 ) {
     //! <b>[load_image]</b>
@@ -390,24 +545,20 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
     //! <b>[match]</b>
     /// Match template images on source image.
     /// @code{.cpp}
-    cv::Mat l_image_display;
+    cv::Mat l_imageDisplay;
     std::map< std::string, std::array< unsigned int, 2 > > l_templateMap;
 
     MatchTemplates(
-        _match_method,
+        _matchMethod,
         l_image,
-        _templateImages_v,
+        _templateImages,
         _showResult,
-        l_image_display,
+        l_imageDisplay,
         l_templateMap
     );
 
-    if ( l_image_display.empty() || !l_templateMap[ "0" ][ 0 ] || !l_templateMap[ "0" ][ 1 ] ) {
-        return (
-            std::map< std::string, std::array< unsigned int, 2 > >{ {
-                "0", { 0, 0 }
-            } }
-        );
+    if ( l_imageDisplay.empty() ) {
+        throw std::ios_base::failure( "Can't read source image" );
     }
     /// @endcode
     //! <b>[match]</b>
@@ -416,7 +567,7 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
     /// Show me what you got.
     /// @code{.cpp}
     if ( _showResult ) {
-        cv::imshow( RESULT_WINDOW_NAME, l_image_display );
+        cv::imshow( RESULT_WINDOW_NAME, l_imageDisplay );
         cv::waitKey( 30 );
     }
     /// @endcode
@@ -432,45 +583,41 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
-/// @param[in] _match_method Parameter specifying the comparison method, see cv::TemplateMatchModes.
-/// @param[in] _sourceWindowHandle Window where the search is running. It must be 8-bit or 32-bit floating-point.
-/// @param[in] _templateImages_v Searched template. It must be not greater than the source image and have the same data type.
+/// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
+/// @param[in] _sourceWindowName Window where the search is running.
+/// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
 /// @return Map of comparison results. Check the "0" field for errors.
 ///////////////
-extern "C" std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
-    unsigned int _match_method,
-    uint32_t _sourceWindowHandle, // HWND
-    std::vector< char* > _templateImages_v,
+std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
+    unsigned int _matchMethod,
+    char* _sourceWindowName,
+    std::vector< std::string > _templateImages,
     const bool _showResult
 ) {
     //! <b>[load_image]</b>
-    /// Get windows capture.
+    /// Get window capture.
     /// @code{.cpp}
-    cv::Mat l_image = getMatFromWindow( _sourceWindowHandle );
+    cv::Mat l_image = getMatFromWindow( _sourceWindowName );
     /// @endcode
     //! <b>[load_image]</b>
 
     //! <b>[match]</b>
     /// Match template images on source image.
     /// @code{.cpp}
-    cv::Mat l_image_display;
+    cv::Mat l_imageDisplay;
     std::map< std::string, std::array< unsigned int, 2 > > l_templateMap;
 
     MatchTemplates(
-        _match_method,
+        _matchMethod,
         l_image,
-        _templateImages_v,
+        _templateImages,
         _showResult,
-        l_image_display,
+        l_imageDisplay,
         l_templateMap );
 
-    if ( l_image_display.empty() || !l_templateMap[ "0" ][ 0 ] || !l_templateMap[ "0" ][ 1 ] ) {
-        return (
-            std::map< std::string, std::array< unsigned int, 2 > >{ {
-                "0", { 0, 0 }
-            } }
-        );
+    if ( l_imageDisplay.empty() ) {
+        throw std::ios_base::failure( "Can't read source image" );
     }
     /// @endcode
     //! <b>[match]</b>
@@ -480,7 +627,7 @@ extern "C" std::map < std::string, std::array< unsigned int, 2 > > MatchingMetho
     /// @code{.cpp}
     cv::Mat t_l_image;
     cv::cvtColor(
-        l_image_display,
+        l_imageDisplay,
         t_l_image,
         cv::COLOR_BGR2RGB
     );
@@ -500,4 +647,4 @@ extern "C" std::map < std::string, std::array< unsigned int, 2 > > MatchingMetho
     //! <b>[return]</b>
 }
 
-// g++ -static-libgcc -static-libstdc++ -I "/usr/local/include/opencv5" matching.cpp -lfmt -fPIC -shared -o matching.so
+// R CMD SHLIB -c cpp_src/matching.cpp && mv cpp_src/matching.so .

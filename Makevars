@@ -1,0 +1,4 @@
+PKG_LIBS = `pkg-config --libs fmt opencv4 x11`
+PKG_CFLAGS = `pkg-config --cflags fmt opencv4 x11`
+PKG_CXXFLAGS = `pkg-config --cflags opencv4` `Rscript -e 'Rcpp:::CxxFlags()'`
+PKG_CFLAGS = `pkg-config --cflags fmt opencv4 x11`
