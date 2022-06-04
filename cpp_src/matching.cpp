@@ -1,21 +1,25 @@
 ///////////////
 /// @file opencv.cpp
-/// @brief \c MatchingMethod and \c MatchingMethodWindow definition.
+/// @brief \c matchingMethodFile and \c matchingMethodWindow definition.
 ///////////////
 #ifdef __WIN32__
 #include <windows.h>
 #else
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/select.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
 #endif
 
 #include <opencv4/opencv2/imgcodecs.hpp>
 #include <opencv4/opencv2/highgui.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
 #include <fmt/core.h>
+// #include <suinput.h>
 
 #include <stdexcept>
 #include <thread>
@@ -26,6 +30,9 @@
 #include <array>
 #include <map>
 #include <iterator>
+#include <time.h>
+#include <stdlib.h>
+
 
 //! <b>[define]</b>
 /// @code{.cpp}
@@ -67,10 +74,10 @@ static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
         &l_windowSize
     );
 
-    unsigned int l_sourceHeight = l_windowSize.bottom;
-    unsigned int l_sourceWidth  = l_windowSize.right;
-    unsigned int l_strechHeight = ( l_windowSize.bottom / 1 );
-    unsigned int l_strechWidth  = ( l_windowSize.right / 1 );
+    uint32_t l_sourceHeight = l_windowSize.bottom;
+    uint32_t l_sourceWidth  = l_windowSize.right;
+    uint32_t l_strechHeight = ( l_windowSize.bottom / 1 );
+    uint32_t l_strechWidth  = ( l_windowSize.right / 1 );
     /// @endcode
     //! <b>[window_info]</b>
 
@@ -215,8 +222,12 @@ static Window windowSearch(
             &l_childrenCount
         )
     ) {
-        for ( unsigned i = 0; i < l_childrenCount; ++i ) {
-            l_window = windowSearch( _display, l_children[ i ], _windowName );
+        for (
+            uint32_t _childrenIndex = 0;
+            _childrenIndex < l_childrenCount;
+            ++_childrenIndex
+        ) {
+            l_window = windowSearch( _display, l_children[ _childrenIndex ], _windowName );
 
             if ( l_window ) {
                 break;
@@ -229,7 +240,7 @@ static Window windowSearch(
     return ( l_window );
 }
 
-static Window getWindowCapture( std::string _windowName ) {
+static Window getWindowByName( std::string _windowName ) {
     Display* l_display = XOpenDisplay( NULL );
 
     Window l_window = windowSearch(
@@ -240,27 +251,42 @@ static Window getWindowCapture( std::string _windowName ) {
 
     XCloseDisplay( l_display );
 
+    if ( !l_window ) {
+        fmt::print(
+            stderr,
+            "Window search failed: {}\n",
+            _windowName
+        );
+    }
+
     return ( l_window );
 }
 
 static cv::Mat getMatFromWindow(
-    std::string    _sourceWindowName,
-    const uint32_t _captureWidth  = ( 800 >> 0 ),
-    const uint32_t _captureHeight = ( 600 >> 0 )
+    std::string _sourceWindowName,
+    uint32_t    _captureWidth  = 0,
+    uint32_t    _captureHeight = 0
 ) {
-
     Display* l_display = XOpenDisplay( NULL );
-    Window l_root = getWindowCapture( _sourceWindowName );
+    Window l_window = getWindowByName( _sourceWindowName );
     XWindowAttributes l_windowAttributes;
 
     XGetWindowAttributes(
         l_display,
-        l_root,
+        l_window,
         &l_windowAttributes
     );
 
     Screen* l_screen = l_windowAttributes.screen;
     XShmSegmentInfo l_shminfo;
+
+    if ( !_captureWidth ) {
+        _captureWidth = l_windowAttributes.width;
+    }
+
+    if ( !_captureHeight ) {
+        _captureHeight = l_windowAttributes.height;
+    }
 
     XImage* l_xImage = XShmCreateImage(
         l_display,
@@ -289,7 +315,7 @@ static cv::Mat getMatFromWindow(
 
     XShmGetImage(
         l_display,
-        l_root,
+        l_window,
         l_xImage,
         0,
         0,
@@ -329,30 +355,30 @@ static cv::Mat getMatFromWindow(
     //! <b>[return]</b>
 }
 
-#endif
+#endif // getMatFromWindow
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
+/// @details Throws ios_base::failure at error.
 /// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _image 2D image array where the search is running. It must be 8-bit or 32-bit floating-point.
 /// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
 /// @param[in] _imageDisplay 2D image array with printed rectangles of found images.
-/// @param[in] _templateMap Map of comparison results. Throws ios_base::failure at error.
+/// @param[in] _templateMap Map of comparison results.
 ///////////////
-static void MatchTemplates(
-    unsigned int _matchMethod,
-    cv::Mat _image,
+static void matchTemplates(
+    uint32_t   _matchMethod,
+    cv::Mat    _image,
     std::vector< std::string > _templateImages,
     const bool _showResult,
-    cv::Mat& _imageDisplay,
-    std::map< std::string, std::array< unsigned int, 2 > >& _templateMap
+    cv::Mat&   _imageDisplay,
+    std::map< std::string, std::array< uint32_t, 2 > >& _templateMap
 ) {
     //! <b>[check_image]</b>
-    /// Return FAILED if 2D image array is empty.
     /// @code{.cpp}
     if ( _image.empty() ) {
-        throw std::ios_base::failure( "Can't read source image" );
+        throw std::ios_base::failure( "Can't read image cv::Mat" );
     }
     /// @endcode
     //! <b>[check_image]</b>
@@ -373,7 +399,7 @@ static void MatchTemplates(
     /// @endcode
     //! <b>[create_window]</b>
 
-    auto MatchTemplate = [ & ]( std::string _templateImage ) {
+    auto matchTemplate = [ & ]( std::string _templateImage ) {
         //! <b>[declare]</b>
         /// 2D image array for result.
         /// @code{.cpp}
@@ -387,9 +413,12 @@ static void MatchTemplates(
         cv::Mat l_templateImage = cv::imread( _templateImage, cv::IMREAD_COLOR );
 
         if ( l_templateImage.empty() ) {
-            fmt::print( "Can't read template image {}\n", _templateImage );
-
-            return ( cv::Point( 0, 0 ) );
+            throw std::ios_base::failure(
+                fmt::format(
+                    "Can't read template image {}",
+                    _templateImage
+                )
+            );
         }
         /// @endcode
         //! <b>[load_template]</b>
@@ -501,21 +530,25 @@ static void MatchTemplates(
     std::vector< std::thread > l_matchTemplateThreads;
     cv::Point l_matchedLocation;
 
-    for ( auto _templateImage : _templateImages ) {
+    for ( std::string _templateImage : _templateImages ) {
         l_matchTemplateThreads.push_back(
             std::thread( [ &, _templateImage ]{
-                l_matchedLocation = MatchTemplate( _templateImage );
+                l_matchedLocation = matchTemplate( _templateImage );
 
                 _templateMap[ _templateImage ] = {
-                    static_cast< unsigned int >( l_matchedLocation.x ),
-                    static_cast< unsigned int >( l_matchedLocation.y )
+                    static_cast< uint32_t >( l_matchedLocation.x ),
+                    static_cast< uint32_t >( l_matchedLocation.y )
                 };
             } )
         );
     }
 
-    for ( unsigned int matchTemplateThread = 0; matchTemplateThread < l_matchTemplateThreads.size(); matchTemplateThread++ ) {
-        l_matchTemplateThreads[ matchTemplateThread ].join();
+    for (
+        uint32_t _matchTemplateThreadIndex = 0;
+        _matchTemplateThreadIndex < l_matchTemplateThreads.size();
+        _matchTemplateThreadIndex++
+    ) {
+        l_matchTemplateThreads[ _matchTemplateThreadIndex ].join();
     }
     /// @endcode
     //! <b>[match_templates]</b>
@@ -523,17 +556,18 @@ static void MatchTemplates(
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
+/// @details Throws ios_base::failure at error.
 /// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _sourceImage Image where the search is running. It must be 8-bit or 32-bit floating-point.
 /// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
-/// @return Map of comparison results. Throws ios_base::failure at error.
+/// @return Map of comparison results.
 ///////////////
-extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod(
-    unsigned int _matchMethod,
-    char* _sourceImage,
+std::map< std::string, std::array< uint32_t, 2 > > matchingMethodFile(
+    uint32_t     _matchMethod,
+    std::string  _sourceImage,
     std::vector< std::string > _templateImages,
-    const bool _showResult
+    const bool   _showResult
 ) {
     //! <b>[load_image]</b>
     /// Load image.
@@ -546,9 +580,9 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
     /// Match template images on source image.
     /// @code{.cpp}
     cv::Mat l_imageDisplay;
-    std::map< std::string, std::array< unsigned int, 2 > > l_templateMap;
+    std::map< std::string, std::array< uint32_t, 2 > > l_templateMap;
 
-    MatchTemplates(
+    matchTemplates(
         _matchMethod,
         l_image,
         _templateImages,
@@ -558,7 +592,12 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
     );
 
     if ( l_imageDisplay.empty() ) {
-        throw std::ios_base::failure( "Can't read source image" );
+        throw std::ios_base::failure(
+            fmt::format(
+                "Can't read source image {}",
+                _sourceImage
+            )
+        );
     }
     /// @endcode
     //! <b>[match]</b>
@@ -589,11 +628,11 @@ extern "C" std::map< std::string, std::array< unsigned int, 2 > > MatchingMethod
 /// @param[in] _showResult Will print out squares of found images to other window.
 /// @return Map of comparison results. Check the "0" field for errors.
 ///////////////
-std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
-    unsigned int _matchMethod,
-    char* _sourceWindowName,
+std::map < std::string, std::array< uint32_t, 2 > > matchingMethodWindow(
+    uint32_t    _matchMethod,
+    std::string _sourceWindowName,
     std::vector< std::string > _templateImages,
-    const bool _showResult
+    const bool  _showResult
 ) {
     //! <b>[load_image]</b>
     /// Get window capture.
@@ -606,9 +645,9 @@ std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
     /// Match template images on source image.
     /// @code{.cpp}
     cv::Mat l_imageDisplay;
-    std::map< std::string, std::array< unsigned int, 2 > > l_templateMap;
+    std::map< std::string, std::array< uint32_t, 2 > > l_templateMap;
 
-    MatchTemplates(
+    matchTemplates(
         _matchMethod,
         l_image,
         _templateImages,
@@ -617,7 +656,11 @@ std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
         l_templateMap );
 
     if ( l_imageDisplay.empty() ) {
-        throw std::ios_base::failure( "Can't read source image" );
+        throw std::ios_base::failure(
+            fmt::format(
+                "Can't read source window {}",
+                _sourceWindowName
+            ));
     }
     /// @endcode
     //! <b>[match]</b>
@@ -626,6 +669,7 @@ std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
     /// Show me what you got.
     /// @code{.cpp}
     cv::Mat t_l_image;
+
     cv::cvtColor(
         l_imageDisplay,
         t_l_image,
@@ -646,5 +690,319 @@ std::map < std::string, std::array< unsigned int, 2 > > MatchingMethodWindow(
     /// @endcode
     //! <b>[return]</b>
 }
+
+extern "C" void matchingMethodFile(
+    uint32_t*   _matchMethod,
+    char**      _sourceImage,
+    char**      _templateImage,
+    double*     _searchResults,
+    const bool* _showResult
+) {
+    std::map<
+        std::string,
+        std::array< uint32_t, 2 >
+    > l_coordinates = matchingMethodFile(
+        *_matchMethod,
+        std::string( *_sourceImage ),
+        { std::string( *_templateImage ) },
+        *_showResult
+    );
+
+    _searchResults[ 0 ] = l_coordinates[ std::string( *_templateImage ) ][ 0 ];
+    _searchResults[ 1 ] = l_coordinates[ std::string( *_templateImage ) ][ 1 ];
+}
+
+extern "C" void matchingMethodWindow(
+    uint32_t*   _matchMethod,
+    char**      _sourceWindowName,
+    char**      _templateImage,
+    double*     _searchResults,
+    const bool* _showResult
+) {
+    std::map<
+        std::string,
+        std::array< uint32_t, 2 >
+    > l_coordinates = matchingMethodWindow(
+        *_matchMethod,
+        std::string( *_sourceWindowName ),
+        { std::string( *_templateImage ) },
+        *_showResult
+    );
+
+    _searchResults[ 0 ] = l_coordinates[ std::string( *_templateImage ) ][ 0 ];
+    _searchResults[ 1 ] = l_coordinates[ std::string( *_templateImage ) ][ 1 ];
+}
+
+#ifdef __WIN32__
+
+extern "C" bool leftMouseClick(
+    std::string    _windowName,
+    const uint32_t _coordinateX,
+    const uint32_t _coordinateY
+) {
+    //! <b>[declare]</b>
+    /// @code{.cpp}
+    HWND l_windowHandle = FindWindow( NULL, _windowName.c_str() );
+    POINT l_point;
+    l_point.x = _coordinateX;
+    l_point.y = _coordinateY;
+    /// @endcode
+    //! <b>[declare]</b>
+
+    //! <b>[]</b>
+    /// ClientToScreen function converts the client-area coordinates of a specified l_point to screen coordinates.
+    /// @code{.cpp}
+    if ( ClientToScreen(
+        l_windowHandle, // A handle to the window whose client area is used for the conversion.
+        &l_point       // A l_pointer to a \c POINT structure that contains the client coordinates to be converted. The new screen coordinates are copied into this structure if the function succeeds.
+        )
+    ) {
+    /// @endcode
+    //! <b>[]</b>
+        //! <b>[set_cursor_position]</b>
+        /// Setting cursor position by X and Y.
+        /// @code{.cpp}
+        SetCursorPos(
+            l_point.x,              // X
+            l_point.y               // Y
+        );
+        /// @endcode
+        //! <b>[set_cursor_position]</b>
+
+        //! <b>[input]</b>
+        /// Creating the \c INPUT structure with parameters to down left mouse button.
+        /// @code{.cpp}
+        INPUT l_mouseInput = { 0 }; // Empty
+
+        l_mouseInput.type       = INPUT_MOUSE;
+        l_mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        /// @endcode
+        //! <b>[input]</b>
+
+        //! <b>[click]</b>
+        /// Sendind input with \c INPUT structure to \c winuser.
+        /// @code{.cpp}
+        SendInput(
+            1,                      // The number of structures in the \c pInputs array.
+            &l_mouseInput,          // An array of \c INPUT structures. Each structure represents an event to be inserted into the keyboard or mouse input stream.
+            sizeof( l_mouseInput )  // The size, in bytes, of an \c INPUT structure. If cbSize is not the size of an \c INPUT structure, the function fails.
+        );
+        /// @endcode
+        //! <b>[click]</b>
+
+        //! <b>[sleep]</b>
+        /// Pause between mouse down and mouse up.
+        /// @code{.cpp}
+        Sleep( 200 );               // 200 ms
+        /// @endcode
+        //! <b>[sleep]</b>
+
+        //! <b>[input]</b>
+        /// Editing the \c INPUT structure with parameters to up left mouse button.
+        /// @code{.cpp}
+        l_mouseInput.type       = INPUT_MOUSE;
+        l_mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        /// @endcode
+        //! <b>[input]</b>
+
+        //! <b>[click]</b>
+        /// Sendind input with \c INPUT structure to \c winuser.
+        /// @code{.cpp}
+        SendInput(
+            1,                      // The number of structures in the pInputs array.
+            &l_mouseInput,            // An array of INPUT structures. Each structure represents an event to be inserted into the keyboard or mouse input stream.
+            sizeof( l_mouseInput )    // The size, in bytes, of an INPUT structure. If cbSize is not the size of an INPUT structure, the function fails.
+        );
+        /// @endcode
+        //! <b>[click]</b>
+
+        //! <b>[return]</b>
+        /// End of function.
+        /// @code{.cpp}
+        return (true);
+        /// @endcode
+        //! <b>[return]</b>
+    }
+
+    //! <b>[return]</b>
+    /// End of function.
+    /// @code{.cpp}
+    return (false);
+    /// @endcode
+    //! <b>[return]</b>
+}
+
+#else
+
+#define portable_usleep( t ) select( 0, NULL, NULL, NULL, t )
+
+enum click_t {
+    MOUSE_RIGHT_CLICK,
+    MOUSE_LEFT_CLICK
+};
+
+static bool mouseClick(
+    Display*        _display,
+    uint32_t        _coordinateX,
+    uint32_t        _coordinateY,
+    click_t         _button,
+    struct timeval* _sleepTime
+) {
+    XEvent l_xEvent;
+    Window l_window = DefaultRootWindow( _display );
+    bool l_isSuccess = true;
+
+    XWarpPointer(
+        _display,
+        None,
+        l_window,
+        0,
+        0,
+        0,
+        0,
+        _coordinateX,
+        _coordinateY
+    );
+
+    memset( &l_xEvent, 0, sizeof( l_xEvent ) );
+
+    l_xEvent.xbutton.type        = ButtonPress;
+    l_xEvent.xbutton.button      = _button;
+    l_xEvent.xbutton.same_screen = True;
+
+    XQueryPointer(
+        _display,
+        l_window,
+        &l_xEvent.xbutton.root,
+        &l_xEvent.xbutton.window,
+        &l_xEvent.xbutton.x_root,
+        &l_xEvent.xbutton.y_root,
+        &l_xEvent.xbutton.x,
+        &l_xEvent.xbutton.y,
+        &l_xEvent.xbutton.state
+    );
+
+    l_xEvent.xbutton.subwindow = l_xEvent.xbutton.window;
+
+    while ( l_xEvent.xbutton.subwindow ) {
+        l_xEvent.xbutton.window = l_xEvent.xbutton.subwindow;
+
+        XQueryPointer(
+            _display,
+            l_xEvent.xbutton.window,
+            &l_xEvent.xbutton.root,
+            &l_xEvent.xbutton.subwindow,
+            &l_xEvent.xbutton.x_root,
+            &l_xEvent.xbutton.y_root,
+            &l_xEvent.xbutton.x,
+            &l_xEvent.xbutton.y,
+            &l_xEvent.xbutton.state
+        );
+    }
+
+    if ( XSendEvent( _display, PointerWindow, True, 0xfff, &l_xEvent ) == 0 ) {
+        fmt::print( stderr, "Error on first XSendEvent()" );
+
+        l_isSuccess = false;
+    }
+
+    XFlush( _display );
+    portable_usleep( _sleepTime ); // Hold
+
+    l_xEvent.type          = ButtonRelease;
+    l_xEvent.xbutton.state = 0x100;
+
+    if ( XSendEvent( _display, PointerWindow, True, 0xfff, &l_xEvent ) == 0 ) {
+        fmt::print( stderr, "Error on second XSendEvent()" );
+
+        l_isSuccess = false;
+    }
+
+    XFlush( _display );
+
+    return ( l_isSuccess );
+}
+
+extern "C" void leftMouseClick(
+    char**    _windowName,
+    uint32_t* _coordinateX,
+    uint32_t* _coordinateY
+) {
+    // The coordinates in attr are relative to the parent window.  If
+    // the parent window is the root window, then the coordinates are
+    // correct.  If the parent window isn't the root window --- which
+    // is likely --- then we translate them.
+    Display* l_display = XOpenDisplay( NULL );
+    Window l_parentWindow;
+    Window l_rootWindow;
+    Window* l_childrenWindow;
+    uint32_t l_childrenCount;
+    int l_windowX;
+    int l_windowY;
+
+    if ( !l_display ) {
+        fmt::print( stderr, "Can't open display!\n" );
+
+        return;
+    }
+
+    struct timeval l_sleepTime;
+    l_sleepTime.tv_sec = 0;
+    l_sleepTime.tv_usec = ( 0.5 * 1000 * 1000 ); // 0.5 seconds
+
+    Window l_window = getWindowByName( std::string( *_windowName ) );
+
+    XWindowAttributes l_windowAttributes;
+
+    XGetWindowAttributes(
+        l_display,
+        l_window,
+        &l_windowAttributes
+    );
+
+    XQueryTree(
+        l_display,
+        l_window,
+        &l_rootWindow,
+        &l_parentWindow,
+        &l_childrenWindow,
+        &l_childrenCount
+    );
+
+    if ( l_childrenWindow != NULL ) {
+        XFree( l_childrenWindow );
+    }
+
+    if ( l_parentWindow == l_windowAttributes.root ) {
+        l_windowX = l_windowAttributes.x;
+        l_windowY = l_windowAttributes.y;
+
+    } else {
+        Window l_unusedChildren;
+
+        XTranslateCoordinates(
+            l_display,
+            l_window,
+            l_windowAttributes.root,
+            0,
+            0,
+            &l_windowX,
+            &l_windowY,
+            &l_unusedChildren
+        );
+    }
+
+    mouseClick(
+        l_display,
+        ( l_windowX + *_coordinateX ),
+        ( l_windowY + *_coordinateY ),
+        click_t::MOUSE_LEFT_CLICK,
+        &l_sleepTime
+    );
+
+    XCloseDisplay( l_display );
+}
+
+#endif // leftMouseClick
 
 // R CMD SHLIB -c cpp_src/matching.cpp && mv cpp_src/matching.so .
