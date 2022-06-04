@@ -1,6 +1,7 @@
 .vscode/
 *.code-workspace
 deprecated/
+image/
 *.bak
 *.txt
 *.so
