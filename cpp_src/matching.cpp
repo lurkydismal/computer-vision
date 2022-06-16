@@ -2,64 +2,91 @@
 /// @file opencv.cpp
 /// @brief \c matchingMethodFile and \c matchingMethodWindow definition.
 ///////////////
-#ifdef __WIN32__
+#ifdef _WIN32
+
 #include <windows.h>
+
 #else
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/select.h>
-#include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/ipc.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
+
 #endif
 
-#include <opencv4/opencv2/imgcodecs.hpp>
 #include <opencv4/opencv2/highgui.hpp>
+#include <opencv4/opencv2/imgcodecs.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
 #include <fmt/core.h>
 
-#include <stdexcept>
-#include <thread>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include <vector>
-#include <array>
-#include <map>
-#include <iterator>
-#include <time.h>
 #include <stdlib.h>
-
+#include <stdexcept>
+#include <thread>
+#include <iterator>
+#include <vector>
+#include <map>
 
 //! <b>[define]</b>
 /// @code{.cpp}
 #define RESULT_WINDOW_NAME "Result window"
+
+#ifndef _WIN32
+
+#define portable_usleep( _time ) select( 0, NULL, NULL, NULL, _time )
+
+#endif
 /// @endcode
 //! <b>[define]</b>
 
-#ifdef __WIN32__
+//! <b>[enum]</b>
+/// @code{.cpp}
+#ifdef _WIN32
+
+enum click_t {
+    MOUSE_RIGHT_CLICK = 0x0008,
+    MOUSE_LEFT_CLICK  = 0x0002
+};
+
+#else
+
+enum click_t {
+    MOUSE_RIGHT_CLICK,
+    MOUSE_LEFT_CLICK
+};
+
+#endif
+/// @endcode
+//! <b>[enum]</b>
+
+#ifdef _WIN32
+
 ///////////////
-/// @brief Get cv::Mat object from window capture.
-/// @param[in] _sourceWindowName Window handle to capture from.
+/// @brief Get \c cv::Mat object from window capture.
+/// @param[in] _sourceWindowName Window handle.
 /// @return Window capture.
 ///////////////
 static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
-    HWND l_sourceWindowHandle = FindWindow( NULL, _sourceWindowName.c_str() );
     //! <b>[declare]</b>
-    /// Local variables.
     /// @code{.cpp}
-    cv::Mat l_sourceImage;
+    cv::Mat          l_sourceImage;
     BITMAPINFOHEADER l_bitmapInfo;
     /// @endcode
     //! <b>[declare]</b>
 
     //! <b>[window_info]</b>
-    /// Get window parameters.
     /// @code{.cpp}
-    HDC l_handleWindowDeviceContext           = GetDC( l_sourceWindowHandle );
-    HDC l_handleWindowCompatibleDeviceContext = CreateCompatibleDC( l_handleWindowDeviceContext );
+    HWND l_sourceWindowHandle                  = FindWindow( NULL, _sourceWindowName.c_str() );
+    HDC  l_handleWindowDeviceContext           = GetDC( l_sourceWindowHandle );
+    HDC  l_handleWindowCompatibleDeviceContext = CreateCompatibleDC( l_handleWindowDeviceContext );
 
     SetStretchBltMode(
         l_handleWindowCompatibleDeviceContext,
@@ -189,32 +216,51 @@ static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
 
 #else
 
+///////////////
+/// @brief Get \c Window to needed window by name on \c Display .
+/// @param[in] _display \c Display pointer.
+/// @param[in] _window default root window.
+/// @param[in] _windowName Window name.
+/// @return \c Window information.
+///////////////
 static Window windowSearch(
     Display*    _display,
-    Window      _defaultWindow,
+    Window      _window,
     std::string _windowName
 ) {
-    Window l_window = 0;
-    Window l_root;
-    Window l_parent;
-    Window* l_children;
+    //! <b>[declare]</b>
+    /// @code{.cpp}
+    Window   l_window = 0;
+    Window   l_root;
+    Window   l_parent;
+    Window*  l_children;
     uint32_t l_childrenCount;
-    char* l_name = NULL;
+    char*    l_name = NULL;
+    /// @endcode
+    //! <b>[declare]</b>
 
-    if ( XFetchName( _display, _defaultWindow, &l_name ) ) {
+    //! <b>[check]</b>
+    /// Compare root window name to received.
+    /// @code{.cpp}
+    if ( XFetchName( _display, _window, &l_name ) ) {
         bool l_isNeedle = ( _windowName == l_name );
 
         XFree( l_name );
 
         if ( l_isNeedle ) {
-            return ( _defaultWindow );
+            return ( _window );
         }
     }
+    /// @endcode
+    //! <b>[check]</b>
 
+    //! <b>[check_all]</b>
+    /// Compare all window names to received.
+    /// @code{.cpp}
     if (
         XQueryTree(
             _display,
-            _defaultWindow,
+            _window,
             &l_root,
             &l_parent,
             &l_children,
@@ -235,21 +281,48 @@ static Window windowSearch(
 
         XFree( l_children );
     }
+    /// @endcode
+    //! <b>[check_all]</b>
 
+    //! <b>[return]</b>
+    /// End of function.
+    /// @code{.cpp}
     return ( l_window );
+    /// @endcode
+    //! <b>[return]</b>
 }
 
+///////////////
+/// @brief Get \c Window to needed window by name.
+/// @param[in] _windowName Window name.
+/// @return \c Window information.
+///////////////
 static Window getWindowByName( std::string _windowName ) {
+    //! <b>[declare]</b>
+    /// @code{.cpp}
     Display* l_display = XOpenDisplay( NULL );
+    /// @endcode
+    //! <b>[declare]</b>
 
+    //! <b>[search]</b>
+    /// Get \c Window by window name.
+    /// @code{.cpp}
     Window l_window = windowSearch(
         l_display,
         XDefaultRootWindow( l_display ),
         _windowName
     );
+    /// @endcode
+    //! <b>[search]</b>
 
+    //! <b>[close]</b>
+    /// @code{.cpp}
     XCloseDisplay( l_display );
+    /// @endcode
+    //! <b>[close]</b>
 
+    //! <b>[error]</b>
+    /// @code{.cpp}
     if ( !l_window ) {
         fmt::print(
             stderr,
@@ -257,17 +330,34 @@ static Window getWindowByName( std::string _windowName ) {
             _windowName
         );
     }
+    /// @endcode
+    //! <b>[error]</b>
 
+    //! <b>[return]</b>
+    /// End of function.
+    /// @code{.cpp}
     return ( l_window );
+    /// @endcode
+    //! <b>[return]</b>
 }
 
+///////////////
+/// @brief Get \c cv::Mat object from window capture.
+/// @details Capture width and height should be less or equal to window's.
+/// @param[in] _sourceWindowName Window handle.
+/// @param[in] _captureWidth Capture width. Optional.
+/// @param[in] _captureHeight Capture height. Optional.
+/// @return Window capture.
+///////////////
 static cv::Mat getMatFromWindow(
     std::string _sourceWindowName,
     uint32_t    _captureWidth  = 0,
     uint32_t    _captureHeight = 0
 ) {
-    Display* l_display = XOpenDisplay( NULL );
-    Window l_window = getWindowByName( _sourceWindowName );
+    //! <b>[declare]</b>
+    /// @code{.cpp}
+    Display*          l_display = XOpenDisplay( NULL );
+    Window            l_window  = getWindowByName( _sourceWindowName );
     XWindowAttributes l_windowAttributes;
 
     XGetWindowAttributes(
@@ -275,9 +365,6 @@ static cv::Mat getMatFromWindow(
         l_window,
         &l_windowAttributes
     );
-
-    Screen* l_screen = l_windowAttributes.screen;
-    XShmSegmentInfo l_shminfo;
 
     if ( !_captureWidth ) {
         _captureWidth = l_windowAttributes.width;
@@ -287,6 +374,13 @@ static cv::Mat getMatFromWindow(
         _captureHeight = l_windowAttributes.height;
     }
 
+    Screen*         l_screen = l_windowAttributes.screen;
+    XShmSegmentInfo l_shminfo;
+    /// @endcode
+    //! <b>[declare]</b>
+
+    //! <b>[canvas]</b>
+    /// @code{.cpp}
     XImage* l_xImage = XShmCreateImage(
         l_display,
         DefaultVisualOfScreen( l_screen ),
@@ -297,21 +391,42 @@ static cv::Mat getMatFromWindow(
         _captureWidth,
         _captureHeight
     );
+    /// @endcode
+    //! <b>[canvas]</b>
 
+    //! <b>[prepare]</b>
+    /// Prepare window information to capture.
+    /// @code{.cpp}
     l_shminfo.shmid = shmget(
         IPC_PRIVATE,
         ( l_xImage->bytes_per_line * l_xImage->height ),
         ( IPC_CREAT | 0777 )
     );
-    l_shminfo.shmaddr = l_xImage->data = (char*)shmat( l_shminfo.shmid, 0, 0 );
+    l_shminfo.shmaddr  = l_xImage->data = (char*)shmat( l_shminfo.shmid, 0, 0 );
     l_shminfo.readOnly = false;
+    /// @endcode
+    //! <b>[prepare]</b>
 
+    //! <b>[error]</b>
+    /// @code{.cpp}
     if ( !l_shminfo.shmid ) {
-        puts("Fatal shminfo error!");
+        fmt::print(
+            stderr,
+            "Fatal shminfo error!"
+        );
     }
+    /// @endcode
+    //! <b>[error]</b>
 
+    //! <b>[attach]</b>
+    /// Attach to display with \c l_shminfo.
+    /// @code{.cpp}
     XShmAttach( l_display, &l_shminfo );
+    /// @endcode
+    //! <b>[attach]</b>
 
+    //! <b>[capture]</b>
+    /// @code{.cpp}
     XShmGetImage(
         l_display,
         l_window,
@@ -320,7 +435,12 @@ static cv::Mat getMatFromWindow(
         0,
         0x00ffffff
     );
+    /// @endcode
+    //! <b>[capture]</b>
 
+    //! <b>[color]</b>
+    /// Convert source image to template's color format.
+    /// @code{.cpp}
     cv::Mat l_image = cv::Mat(
         _captureHeight,
         _captureWidth,
@@ -328,9 +448,6 @@ static cv::Mat getMatFromWindow(
         l_xImage->data
     );
 
-    //! <b>[color]</b>
-    /// Convert source image to template's color format.
-    /// @code{.cpp}
     cv::Mat t_l_image;
 
     cv::cvtColor(
@@ -341,10 +458,14 @@ static cv::Mat getMatFromWindow(
     /// @endcode
     //! <b>[color]</b>
 
+    //! <b>[close]</b>
+    /// @code{.cpp}
     XShmDetach( l_display, &l_shminfo );
     XDestroyImage( l_xImage );
     shmdt( l_shminfo.shmaddr );
     XCloseDisplay( l_display );
+    /// @endcode
+    //! <b>[close]</b>
 
     //! <b>[return]</b>
     /// End of function.
@@ -559,7 +680,7 @@ static void matchTemplates(
 /// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _sourceImage Image where the search is running. It must be 8-bit or 32-bit floating-point.
 /// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
-/// @param[in] _showResult Will print out squares of found images to other window.
+/// @param[in] _showResult Will print out squares of found images to window.
 /// @return Map of comparison results.
 ///////////////
 std::map< std::string, std::array< uint32_t, 2 > > matchingMethodFile(
@@ -621,11 +742,12 @@ std::map< std::string, std::array< uint32_t, 2 > > matchingMethodFile(
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
+/// @details Throws ios_base::failure at error.
 /// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
 /// @param[in] _sourceWindowName Window where the search is running.
 /// @param[in] _templateImages Searched template. It must be not greater than the source image and have the same data type.
 /// @param[in] _showResult Will print out squares of found images to other window.
-/// @return Map of comparison results. Check the "0" field for errors.
+/// @return Map of comparison results.
 ///////////////
 std::map < std::string, std::array< uint32_t, 2 > > matchingMethodWindow(
     uint32_t    _matchMethod,
@@ -690,6 +812,15 @@ std::map < std::string, std::array< uint32_t, 2 > > matchingMethodWindow(
     //! <b>[return]</b>
 }
 
+///////////////
+/// @brief Compares a template against overlapped image regions.
+/// @details Throws ios_base::failure at error.
+/// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
+/// @param[in] _sourceImage Image where the search is running. It must be 8-bit or 32-bit floating-point.
+/// @param[in] _templateImage Searched template. It must be not greater than the source image and have the same data type.
+/// @param[in] _searchResults Array to store result.
+/// @param[in] _showResult Will print out squares of found images to window.
+///////////////
 extern "C" void matchingMethodFile(
     uint32_t*   _matchMethod,
     char**      _sourceImage,
@@ -711,6 +842,15 @@ extern "C" void matchingMethodFile(
     _searchResults[ 1 ] = l_coordinates[ std::string( *_templateImage ) ][ 1 ];
 }
 
+///////////////
+/// @brief Compares a template against overlapped image regions.
+/// @details Throws ios_base::failure at error.
+/// @param[in] _matchMethod Parameter specifying the comparison method, see cv::TemplateMatchModes.
+/// @param[in] _sourceWindowName Window where the search is running.
+/// @param[in] _templateImage Searched template. It must be not greater than the source image and have the same data type.
+/// @param[in] _searchResults Array to store result.
+/// @param[in] _showResult Will print out squares of found images to other window.
+///////////////
 extern "C" void matchingMethodWindow(
     uint32_t*   _matchMethod,
     char**      _sourceWindowName,
@@ -732,17 +872,29 @@ extern "C" void matchingMethodWindow(
     _searchResults[ 1 ] = l_coordinates[ std::string( *_templateImage ) ][ 1 ];
 }
 
-#ifdef __WIN32__
+#ifdef _WIN32
 
-extern "C" bool leftMouseClick(
+///////////////
+/// @brief Clicks on window by coordinates.
+/// @param[in] _windowName Window name.
+/// @param[in] _coordinateX X relative to window.
+/// @param[in] _coordinateY Y relative to window.
+/// @param[in] _button Button of \c click_t .
+/// @param[in] _sleepTime Pause between hold and release.
+/// @return Clicked or not.
+///////////////
+extern "C" bool mouseClick(
     std::string    _windowName,
     const uint32_t _coordinateX,
-    const uint32_t _coordinateY
+    const uint32_t _coordinateY,
+    click_t        _button,
+    uint32_t       _sleepTime
 ) {
     //! <b>[declare]</b>
     /// @code{.cpp}
-    HWND l_windowHandle = FindWindow( NULL, _windowName.c_str() );
+    HWND  l_windowHandle = FindWindow( NULL, _windowName.c_str() );
     POINT l_point;
+
     l_point.x = _coordinateX;
     l_point.y = _coordinateY;
     /// @endcode
@@ -753,7 +905,7 @@ extern "C" bool leftMouseClick(
     /// @code{.cpp}
     if ( ClientToScreen(
         l_windowHandle, // A handle to the window whose client area is used for the conversion.
-        &l_point       // A l_pointer to a \c POINT structure that contains the client coordinates to be converted. The new screen coordinates are copied into this structure if the function succeeds.
+        &l_point        // A l_pointer to a \c POINT structure that contains the client coordinates to be converted. The new screen coordinates are copied into this structure if the function succeeds.
         )
     ) {
     /// @endcode
@@ -774,7 +926,7 @@ extern "C" bool leftMouseClick(
         INPUT l_mouseInput = { 0 }; // Empty
 
         l_mouseInput.type       = INPUT_MOUSE;
-        l_mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        l_mouseInput.mi.dwFlags = _button;
         /// @endcode
         //! <b>[input]</b>
 
@@ -792,7 +944,7 @@ extern "C" bool leftMouseClick(
         //! <b>[sleep]</b>
         /// Pause between mouse down and mouse up.
         /// @code{.cpp}
-        Sleep( 200 );               // 200 ms
+        Sleep( _sleepTime );
         /// @endcode
         //! <b>[sleep]</b>
 
@@ -800,7 +952,7 @@ extern "C" bool leftMouseClick(
         /// Editing the \c INPUT structure with parameters to up left mouse button.
         /// @code{.cpp}
         l_mouseInput.type       = INPUT_MOUSE;
-        l_mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        l_mouseInput.mi.dwFlags = ( _button + 0x0002 );
         /// @endcode
         //! <b>[input]</b>
 
@@ -818,7 +970,7 @@ extern "C" bool leftMouseClick(
         //! <b>[return]</b>
         /// End of function.
         /// @code{.cpp}
-        return (true);
+        return ( true );
         /// @endcode
         //! <b>[return]</b>
     }
@@ -826,20 +978,42 @@ extern "C" bool leftMouseClick(
     //! <b>[return]</b>
     /// End of function.
     /// @code{.cpp}
-    return (false);
+    return ( false );
     /// @endcode
     //! <b>[return]</b>
 }
 
+///////////////
+/// @brief Left clicks on window by coordinates.
+/// @param[in] _windowName Window name.
+/// @param[in] _coordinateX X relative to window.
+/// @param[in] _coordinateY Y relative to window.
+///////////////
+extern "C" void leftMouseClick(
+    char**    _windowName,
+    uint32_t* _coordinateX,
+    uint32_t* _coordinateY
+) {
+    mouseClick(
+        _windowName,
+        _coordinateX,
+        _coordinateY,
+        click_t::MOUSE_LEFT_CLICK,
+        ( 0.5 * 1000 )
+    );
+}
+
 #else
 
-#define portable_usleep( t ) select( 0, NULL, NULL, NULL, t )
-
-enum click_t {
-    MOUSE_RIGHT_CLICK,
-    MOUSE_LEFT_CLICK
-};
-
+///////////////
+/// @brief Clicks on window by coordinates.
+/// @param[in] _display \c Display to click.
+/// @param[in] _coordinateX X relative to display.
+/// @param[in] _coordinateY Y relative to display.
+/// @param[in] _button Button of \c click_t .
+/// @param[in] _sleepTime Pause between hold and release.
+/// @return Clicked or not.
+///////////////
 static bool mouseClick(
     Display*        _display,
     uint32_t        _coordinateX,
@@ -847,21 +1021,33 @@ static bool mouseClick(
     click_t         _button,
     struct timeval* _sleepTime
 ) {
-    XEvent l_xEvent;
-    Window l_window = DefaultRootWindow( _display );
-    bool l_isSuccess = true;
+    //! <b>[declare]</b>
+    /// @code{.cpp}
+    Window l_window    = DefaultRootWindow( _display );
+    bool   l_isSuccess = true;
+    /// @endcode
+    //! <b>[declare]</b>
 
+    //! <b>[mouse_move]</b>
+    /// @code{.cpp}
     XWarpPointer(
-        _display,
-        None,
-        l_window,
-        0,
-        0,
-        0,
-        0,
-        _coordinateX,
-        _coordinateY
+        _display,     // Specifies the connection to the X server.
+        None,         // Specifies the source window
+        l_window,     // Specifies the destination window
+        0,            // Source X
+        0,            // Source Y
+        0,            // Specify a rectangle width in the source window.
+        0,            // Specify a rectangle height in the source window.
+        _coordinateX, // Specify the X coordinates within the destination window.
+        _coordinateY  // Specify the Y coordinates within the destination window.
     );
+    /// @endcode
+    //! <b>[mouse_move]</b>
+
+    //! <b>[get_pointer]</b>
+    /// Get pointer coordinates.
+    /// @code{.cpp}
+    XEvent l_xEvent;
 
     memset( &l_xEvent, 0, sizeof( l_xEvent ) );
 
@@ -898,16 +1084,28 @@ static bool mouseClick(
             &l_xEvent.xbutton.state
         );
     }
+    /// @endcode
+    //! <b>[get_pointer]</b>
 
+    //! <b>[press]</b>
+    /// @code{.cpp}
     if ( XSendEvent( _display, PointerWindow, True, 0xfff, &l_xEvent ) == 0 ) {
         fmt::print( stderr, "Error on first XSendEvent()" );
 
         l_isSuccess = false;
     }
+    /// @endcode
+    //! <b>[press]</b>
 
+    //! <b>[hold]</b>
+    /// @code{.cpp}
     XFlush( _display );
-    portable_usleep( _sleepTime ); // Hold
+    portable_usleep( _sleepTime );
+    /// @endcode
+    //! <b>[hold]</b>
 
+    //! <b>[release]</b>
+    /// @code{.cpp}
     l_xEvent.type          = ButtonRelease;
     l_xEvent.xbutton.state = 0x100;
 
@@ -916,28 +1114,48 @@ static bool mouseClick(
 
         l_isSuccess = false;
     }
+    /// @endcode
+    //! <b>[release]</b>
 
+    //! <b>[apply]</b>
+    /// @code{.cpp}
     XFlush( _display );
+    /// @endcode
+    //! <b>[apply]</b>
 
+    //! <b>[return]</b>
+    /// End of function.
+    /// @code{.cpp}
     return ( l_isSuccess );
+    /// @endcode
+    //! <b>[return]</b>
 }
 
+///////////////
+/// @brief Left clicks on window by coordinates.
+/** @details The coordinates in attr are relative to the parent window.
+  * If the parent window is the root window, then the coordinates are correct.
+  * If the parent window isn't the root window then we translate them.
+**/
+/// @param[in] _windowName Window name.
+/// @param[in] _coordinateX X relative to window.
+/// @param[in] _coordinateY Y relative to window.
+///////////////
 extern "C" void leftMouseClick(
     char**    _windowName,
     uint32_t* _coordinateX,
     uint32_t* _coordinateY
 ) {
-    // The coordinates in attr are relative to the parent window.  If
-    // the parent window is the root window, then the coordinates are
-    // correct.  If the parent window isn't the root window --- which
-    // is likely --- then we translate them.
+
+    //! <b>[declare]</b>
+    /// @code{.cpp}
     Display* l_display = XOpenDisplay( NULL );
-    Window l_parentWindow;
-    Window l_rootWindow;
-    Window* l_childrenWindow;
+    Window   l_parentWindow;
+    Window   l_rootWindow;
+    Window*  l_childrenWindow;
     uint32_t l_childrenCount;
-    int l_windowX;
-    int l_windowY;
+    int      l_windowX;
+    int      l_windowY;
 
     if ( !l_display ) {
         fmt::print( stderr, "Can't open display!\n" );
@@ -946,19 +1164,27 @@ extern "C" void leftMouseClick(
     }
 
     struct timeval l_sleepTime;
-    l_sleepTime.tv_sec = 0;
+    l_sleepTime.tv_sec  = 0;
     l_sleepTime.tv_usec = ( 0.5 * 1000 * 1000 ); // 0.5 seconds
 
     Window l_window = getWindowByName( std::string( *_windowName ) );
 
     XWindowAttributes l_windowAttributes;
+    /// @endcode
+    //! <b>[declare]</b>
 
+    //! <b>[get_attributes]</b>
+    /// @code{.cpp}
     XGetWindowAttributes(
         l_display,
         l_window,
         &l_windowAttributes
     );
+    /// @endcode
+    //! <b>[get_attributes]</b>
 
+    //! <b>[get_window_IDs]</b>
+    /// @code{.cpp}
     XQueryTree(
         l_display,
         l_window,
@@ -971,7 +1197,11 @@ extern "C" void leftMouseClick(
     if ( l_childrenWindow != NULL ) {
         XFree( l_childrenWindow );
     }
+    /// @endcode
+    //! <b>[get_window_IDs]</b>
 
+    //! <b>[check]</b>
+    /// @code{.cpp}
     if ( l_parentWindow == l_windowAttributes.root ) {
         l_windowX = l_windowAttributes.x;
         l_windowY = l_windowAttributes.y;
@@ -990,7 +1220,11 @@ extern "C" void leftMouseClick(
             &l_unusedChildren
         );
     }
+    /// @endcode
+    //! <b>[check]</b>
 
+    //! <b>[click]</b>
+    /// @code{.cpp}
     mouseClick(
         l_display,
         ( l_windowX + *_coordinateX ),
@@ -998,10 +1232,16 @@ extern "C" void leftMouseClick(
         click_t::MOUSE_LEFT_CLICK,
         &l_sleepTime
     );
+    /// @endcode
+    //! <b>[click]</b>
 
+    //! <b>[close_handle]</b>
+    /// @code{.cpp}
     XCloseDisplay( l_display );
+    /// @endcode
+    //! <b>[close_handle]</b>
 }
 
 #endif // leftMouseClick
 
-// R CMD SHLIB -c cpp_src/matching.cpp && mv cpp_src/matching.so .
+// R CMD SHLIB -c cpp_src/matching.cpp

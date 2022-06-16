@@ -31,7 +31,12 @@ files       <- sub(paste("\\", image_file_extension, "$", sep = ""), "", files)
 data        <- new.env()
 coordinates <- new.env()
 
-dyn.load("matching.so")
+if (.Platform$OS.type == "windows") {
+    dyn.load("matching.dll")
+
+} else if (.Platform$OS.type == "unix") {
+    dyn.load("matching.so")
+}
 
 for (file_index in seq_len(length(files))) {
     file <- str_split(files[file_index], "\\.")[[1]]
