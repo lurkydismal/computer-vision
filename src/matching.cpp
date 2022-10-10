@@ -1,14 +1,15 @@
 ///////////////
-/// @file opencv.cpp
+/// @file matching.cpp
 /// @brief \c matchingMethodFile and \c matchingMethodWindow definition.
 ///////////////
 #ifdef _WIN32
 
 #include <windows.h>
 
-#else
+#else // _WIN32
 
 #include <unistd.h>
+#include <regex.h>
 #include <sys/types.h>
 #include <sys/select.h>
 #include <sys/shm.h>
@@ -17,23 +18,57 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
 
-#endif
+#endif // _WIN32
 
+// Copyright (C) 2000-2022, Intel Corporation, all rights reserved.
+// Copyright (C) 2009-2011, Willow Garage Inc., all rights reserved.
+// Copyright (C) 2009-2016, NVIDIA Corporation, all rights reserved.
+// Copyright (C) 2010-2013, Advanced Micro Devices, Inc., all rights reserved.
+// Copyright (C) 2015-2022, OpenCV Foundation, all rights reserved.
+// Copyright (C) 2008-2016, Itseez Inc., all rights reserved.
+// Copyright (C) 2019-2022, Xperience AI, all rights reserved.
+// Copyright (C) 2019-2022, Shenzhen Institute of Artificial Intelligence and
+//                          Robotics for Society, all rights reserved.
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 #include <opencv4/opencv2/highgui.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
+
+// Copyright (c) 2012 - present, Victor Zverovich
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+// INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <fmt/core.h>
 
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
+#include <map>
 #include <string>
 #include <stdlib.h>
 #include <stdexcept>
 #include <thread>
-#include <iterator>
 #include <vector>
-#include <map>
 
 //! <b>[define]</b>
 /// @code{.cpp}
@@ -43,7 +78,7 @@
 
 #define portable_usleep( _time ) select( 0, NULL, NULL, NULL, _time )
 
-#endif
+#endif // _WIN32
 /// @endcode
 //! <b>[define]</b>
 
@@ -56,14 +91,14 @@ enum click_t {
     MOUSE_LEFT_CLICK  = 0x0002
 };
 
-#else
+#else // _WIN32
 
 enum click_t {
     MOUSE_RIGHT_CLICK,
     MOUSE_LEFT_CLICK
 };
 
-#endif
+#endif // _WIN32
 /// @endcode
 //! <b>[enum]</b>
 
@@ -214,7 +249,7 @@ static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
     //! <b>[return]</b>
 }
 
-#else
+#else // _WIN32
 
 ///////////////
 /// @brief Get \c Window to needed window by name on \c Display .
@@ -224,37 +259,64 @@ static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
 /// @return \c Window information.
 ///////////////
 static Window windowSearch(
-    Display*    _display,
-    Window      _window,
-    std::string _windowName
+    Display*       _display,
+    Window         _window,
+    const regex_t* _windowNameRegExp
 ) {
     //! <b>[declare]</b>
     /// @code{.cpp}
-    Window   l_window = 0;
-    Window   l_root;
-    Window   l_parent;
-    Window*  l_children;
-    uint32_t l_childrenCount;
-    char*    l_name = NULL;
+    Window        l_window = 0;
+    Window        l_root;
+    Window        l_parent;
+    Window*       l_children;
+    uint32_t      l_childrenCount;
+    int           l_windowNamesCount = 0;
+    XTextProperty l_xTextProperty;
+    char**        l_windowNamesList  = NULL;
     /// @endcode
     //! <b>[declare]</b>
 
     //! <b>[check]</b>
     /// Compare root window name to received.
     /// @code{.cpp}
-    if ( XFetchName( _display, _window, &l_name ) ) {
-        bool l_isNeedle = ( _windowName == l_name );
+    XGetWMName( _display, _window, &l_xTextProperty );
 
-        XFree( l_name );
+    if ( l_xTextProperty.nitems > 0 ) {
+        Xutf8TextPropertyToTextList(
+            _display,
+            &l_xTextProperty,
+            &l_windowNamesList,
+            &l_windowNamesCount
+        );
 
-        if ( l_isNeedle ) {
-            return ( _window );
+        for (
+            int _windowNameIndex = 0;
+            _windowNameIndex < l_windowNamesCount;
+            _windowNameIndex++
+        ) {
+            if (
+                regexec(
+                    _windowNameRegExp,
+                    l_windowNamesList[ _windowNameIndex ],
+                    0,
+                    NULL,
+                    0
+                ) == 0
+            ) {
+                XFreeStringList( l_windowNamesList );
+                XFree( l_xTextProperty.value );
+
+                return ( _window );
+            }
         }
     }
+
+    XFreeStringList( l_windowNamesList );
+    XFree( l_xTextProperty.value );
     /// @endcode
     //! <b>[check]</b>
 
-    //! <b>[check_all]</b>
+    //! <b>[check_next]</b>
     /// Compare all window names to received.
     /// @code{.cpp}
     if (
@@ -272,7 +334,7 @@ static Window windowSearch(
             _childrenIndex < l_childrenCount;
             ++_childrenIndex
         ) {
-            l_window = windowSearch( _display, l_children[ _childrenIndex ], _windowName );
+            l_window = windowSearch( _display, l_children[ _childrenIndex ], _windowNameRegExp );
 
             if ( l_window ) {
                 break;
@@ -282,7 +344,7 @@ static Window windowSearch(
         XFree( l_children );
     }
     /// @endcode
-    //! <b>[check_all]</b>
+    //! <b>[check_next]</b>
 
     //! <b>[return]</b>
     /// End of function.
@@ -301,6 +363,13 @@ static Window getWindowByName( std::string _windowName ) {
     //! <b>[declare]</b>
     /// @code{.cpp}
     Display* l_display = XOpenDisplay( NULL );
+    regex_t l_windowNameRegExp;
+
+    regcomp(
+        &l_windowNameRegExp,
+        _windowName.c_str(),
+        REG_EXTENDED | REG_ICASE
+    );
     /// @endcode
     //! <b>[declare]</b>
 
@@ -310,13 +379,14 @@ static Window getWindowByName( std::string _windowName ) {
     Window l_window = windowSearch(
         l_display,
         XDefaultRootWindow( l_display ),
-        _windowName
+        &l_windowNameRegExp
     );
     /// @endcode
     //! <b>[search]</b>
 
     //! <b>[close]</b>
     /// @code{.cpp}
+    regfree( &l_windowNameRegExp );
     XCloseDisplay( l_display );
     /// @endcode
     //! <b>[close]</b>
@@ -475,7 +545,7 @@ static cv::Mat getMatFromWindow(
     //! <b>[return]</b>
 }
 
-#endif // getMatFromWindow
+#endif // _WIN32
 
 ///////////////
 /// @brief Compares a template against overlapped image regions.
@@ -1003,7 +1073,7 @@ extern "C" void leftMouseClick(
     );
 }
 
-#else
+#else // _WIN32
 
 ///////////////
 /// @brief Clicks on window by coordinates.
@@ -1242,6 +1312,4 @@ extern "C" void leftMouseClick(
     //! <b>[close_handle]</b>
 }
 
-#endif // leftMouseClick
-
-// R CMD SHLIB -c cpp_src/matching.cpp
+#endif // _WIN32
