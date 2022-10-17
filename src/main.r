@@ -45,7 +45,7 @@ enum <- function(...) {
 # TM_CCORR_NORMED  - 3
 # TM_CCOEFF        - 4
 # TM_CCOEFF_NORMED - 5
-# More on https://docs.opencv.org/4.x/df/dfb/group__imgproc__object.html#ga3a7850640f1fe1f58fe91a2d7583695d
+# More on https://docs.opencv.org/4.x/df/dfb/group__imgproc__object.html
 
 match_method <- 1
 image_file_directory <- "image"
