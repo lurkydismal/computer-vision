@@ -160,14 +160,14 @@ while (TRUE) {
                 show_result    = TRUE
             )
 
-            # if (coordinate == returned_value$search_results) {
-            #     returned_value <- .C(
-            #         "leftMouseClick",
-            #         window_name = window_name,
-            #         x = as.integer(coordinate[1]),
-            #         y = as.integer(coordinate[2])
-            #     )
-            # }
+            if (coordinate == returned_value$search_results) {
+                returned_value <- .C(
+                    "leftMouseClick",
+                    window_name = window_name,
+                    x = as.integer(coordinate[1]),
+                    y = as.integer(coordinate[2])
+                )
+            }
         }
     }
 
