@@ -1,0 +1,21 @@
+Package: cv
+Title: Computer vision
+Version: 1.1.0
+Authors@R: c(
+    person("Lurky", "Dismal", , , role = c("aut", "cre"))
+  )
+Maintainer: Lurky Dismal
+Description: Simple image-on-image search project.
+License: GPL-3.0 license + file LICENSE
+URL: https://github.com/lurkydismal/computer-vision#readme
+BugReports: https://github.com/lurkydismal/computer-vision/issues
+Depends:
+    R (>= 4.1.2)
+Imports:
+    stringr
+Config/Needs/website: tidyverse/tidytemplate
+Config/testthat/edition: 3
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(r6 = FALSE, load = "installed", markdown = TRUE)
+RoxygenNote: 7.2.1.9000
