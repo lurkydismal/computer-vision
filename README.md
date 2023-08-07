@@ -55,7 +55,9 @@ Other platforms:
 [_OpenCV Releases_](https://opencv.org/releases/)
 
 fmt library for **Debian/ Ubuntu**:
-`apt install libfmt-dev`
+``` console
+apt install libfmt-dev
+```
 
 Other platforms [_fmt library_](https://github.com/fmtlib/fmt/releases/latest)
 
