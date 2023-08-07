@@ -1,0 +1,57 @@
+name: C/C++ CI release
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@cba0d00b1fc9a034e1e642ea0f1103c282990604 # v2.5.0
+      with:
+        egress-policy: audit
+
+    - name: Install R
+      uses: r-lib/actions/setup-r@v2
+      with:
+        use-public-rspm: true
+
+    - name: Install R dependencies 
+      uses: r-lib/actions/setup-r-dependencies@v2
+      with:
+        extra-packages: |
+          any::stringr
+          any::Rcpp
+
+    - name: Install APT Packages
+      run: |
+          sudo apt-get update &&
+          sudo apt-get install -y libopencv-dev &&
+          sudo apt-get install -y libfmt-dev &&
+      shell: bash
+
+    - name: Checkout repository
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+
+#     - name: configure
+#       run: ./configure
+
+#     - name: make release
+#       run: make release
+
+#     - name: make check
+#       run: make check
+
+#     - name: make distcheck
+#       run: make distcheck
