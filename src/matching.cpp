@@ -73,12 +73,6 @@
 //! <b>[define]</b>
 /// @code{.cpp}
 #define RESULT_WINDOW_NAME "Result window"
-
-#ifndef _WIN32
-
-#define portable_usleep( _time ) select( 0, NULL, NULL, NULL, _time )
-
-#endif // _WIN32
 /// @endcode
 //! <b>[define]</b>
 
@@ -1172,7 +1166,8 @@ static bool mouseClick(
     //! <b>[hold]</b>
     /// @code{.cpp}
     XFlush( _display );
-    portable_usleep( _sleepTime );
+    std::this_thread::sleep_for( std::chrono::seconds( _sleepTime->tv_sec ) );
+    std::this_thread::sleep_for( std::chrono::microseconds( _sleepTime->tv_usec ) );
     /// @endcode
     //! <b>[hold]</b>
 
