@@ -185,7 +185,8 @@ static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
     );
     /// @endcode
 
-    /// Copy from the window device context to the bitmap device context. Change SRCCOPY to NOTSRCCOPY for wacky colors.
+    /// Copy from the window device context to the bitmap device context.
+    /// Change SRCCOPY to NOTSRCCOPY for wacky colors.
     /// @code{.cpp}
     StretchBlt(
         l_handleWindowCompatibleDeviceContext,
@@ -472,7 +473,7 @@ static cv::Mat getMatFromWindow(
         ( l_xImage->bytes_per_line * l_xImage->height ),
         ( IPC_CREAT | 0777 )
     );
-    l_shminfo.shmaddr  = l_xImage->data = (char*)shmat( l_shminfo.shmid, 0, 0 );
+    l_shminfo.shmaddr  = l_xImage->data = static_cast< char* >( shmat( l_shminfo.shmid, 0, 0 ) );
     l_shminfo.readOnly = false;
     /// @endcode
     //! <b>[prepare]</b>
