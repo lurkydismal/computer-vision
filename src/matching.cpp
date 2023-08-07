@@ -631,7 +631,7 @@ static void matchTemplates(
         /// @code{.cpp}
         cv::matchTemplate(
             _image,          // Source
-            l_templateImage, // Destination
+            l_templateImage, // Trying to find this
             l_resultImage,
             _matchMethod
         );
