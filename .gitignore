@@ -5,3 +5,5 @@ image/
 *.bak
 *.txt
 *.so
+.RData
+.Rhistory
