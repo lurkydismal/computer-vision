@@ -1,5 +1,7 @@
 # computer-vision
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/4ed6b49f89ee45a2b99bd46918afbf64)](https://app.codacy.com/gh/lurkydismal/computer-vision/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+
 > Simple image-on-image search project.
 
 ## Table of Contents
@@ -27,40 +29,48 @@
 
 ## Screenshots
 
-* > Template:  
-![car](./showcase/template.adv.car.png)  
-Sample:  
+* > Template:
+![car](./showcase/template.adv.car.png)
+Sample:
 ![Example screenshot](./showcase/found_car_on_advertisement.png)
 
-* > Template:  
-![car](./showcase/template.wild.horse.png)  
-Sample:  
+* > Template:
+![car](./showcase/template.wild.horse.png)
+Sample:
 ![Example screenshot](./showcase/found_horse_on_wild.png)
 
-* > Template:  
-![car](./showcase/template.car.car_light.png)  
-Sample:  
+* > Template:
+![car](./showcase/template.car.car_light.png)
+Sample:
 ![Example screenshot](./showcase/found_car_light_on_car.png)
 
 ## Setup
 
 > OpenCV for **Debian/ Ubuntu**:
-`apt install libopencv-dev`  
+``` console
+apt install libopencv-dev
+```
+
 Other platforms:
-[_OpenCV Releases_](https://opencv.org/releases/)  
+[_OpenCV Releases_](https://opencv.org/releases/)
+
 fmt library for **Debian/ Ubuntu**:
-`apt install libfmt-dev`  
-Other platforms [_fmt library_](https://github.com/fmtlib/fmt/releases/latest)  
+`apt install libfmt-dev`
+
+Other platforms [_fmt library_](https://github.com/fmtlib/fmt/releases/latest)
+
 R stringr package:
-`install.packages("stringr")`
+``` r
+install.packages("stringr")
+```
 
 ## Usage
 
-> Change `window_name` in **src/main.r**.  
-Put images into **./image** folder.  
-Image name example:  
-for _sample_ is **"sample.category_name.png"**  
-for _template_ is **"template.category_name.unique_name.png"**  
+> Change `window_name` in **src/main.r**.
+Put images into **./image** folder.
+Image name example:
+for _sample_ is **"sample.category_name.png"**
+for _template_ is **"template.category_name.unique_name.png"**
 Run **./run.sh**
 
 **The image you are looking for should have the same size on sample as on template.**
