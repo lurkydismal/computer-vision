@@ -31,50 +31,56 @@
 ## Screenshots
 
 * > Template:
-![car](./showcase/template.adv.car.png)
-Sample:
-![Example screenshot](./showcase/found_car_on_advertisement.png)
+  > ![car](./showcase/template.adv.car.png)
+  > Sample:
+  > ![Example screenshot](./showcase/found_car_on_advertisement.png)
 
 * > Template:
-![car](./showcase/template.wild.horse.png)
-Sample:
-![Example screenshot](./showcase/found_horse_on_wild.png)
+  > ![horse](./showcase/template.wild.horse.png)
+  > Sample:
+  > ![Example screenshot](./showcase/found_horse_on_wild.png)
 
 * > Template:
-![car](./showcase/template.car.car_light.png)
-Sample:
-![Example screenshot](./showcase/found_car_light_on_car.png)
+  > ![car_light](./showcase/template.car.car_light.png)
+  > Sample:
+  > ![Example screenshot](./showcase/found_car_light_on_car.png)
 
 ## Setup
 
-> OpenCV for **Debian/ Ubuntu**:
-``` console
-apt install libopencv-dev
-```
+* > OpenCV for **Debian/ Ubuntu**:
+  > ``` console
+  > apt install libopencv-dev
+  > ```
 
-Other platforms:
-[_OpenCV Releases_](https://opencv.org/releases/)
+  > Other platforms:
+  > [_OpenCV Releases_](https://opencv.org/releases/)
 
-fmt library for **Debian/ Ubuntu**:
-``` console
-apt install libfmt-dev
-```
+* > fmt library for **Debian/ Ubuntu**:
+  > ``` console
+  > apt install libfmt-dev
+  > ```
 
-Other platforms [_fmt library_](https://github.com/fmtlib/fmt/releases/latest)
+  > Other platforms:
+  > [_fmt library_](https://github.com/fmtlib/fmt/releases/latest)
 
-R stringr package:
-``` r
-install.packages("stringr")
-```
+* > R stringr package:
+  > ``` r
+  > install.packages("stringr")
+  > ```
+
+* > R Rcpp package:
+  > ``` r
+  > install.packages("Rcpp")
+  > ```
 
 ## Usage
 
 > Change `window_name` in **src/main.r**.
-Put images into **./image** folder.
-Image name example:
-for _sample_ is **"sample.category_name.png"**
-for _template_ is **"template.category_name.unique_name.png"**
-Run **./run.sh**
+> Put images into **./image** folder.
+> Image name example:
+> for _sample_ is **"sample.category_name.png"**
+> for _template_ is **"template.category_name.unique_name.png"**
+> Run **./run.sh**
 
 **The image you are looking for should have the same size on sample as on template.**
 
