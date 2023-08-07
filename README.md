@@ -20,6 +20,7 @@
 * OpenCV - version 4.5.4
 * fmt - version 8
 * stringr - version 1.4.1
+* Rcpp - version 1.0.11
 
 ## Features
 
