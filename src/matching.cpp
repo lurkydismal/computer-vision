@@ -421,9 +421,9 @@ static Window getWindowByName( std::string _windowName ) {
 /// @return Window capture.
 ///////////////
 static cv::Mat getMatFromWindow(
-    std::string _sourceWindowName,
-    uint32_t    _captureWidth  = 0,
-    uint32_t    _captureHeight = 0
+    const std::string& _sourceWindowName,
+    uint32_t           _captureWidth  = 0,
+    uint32_t           _captureHeight = 0
 ) {
     //! <b>[declare]</b>
     /// @code{.cpp}
@@ -757,7 +757,7 @@ static void matchTemplates(
 std::map< std::string, std::array< uint32_t, 2 > > matchingMethodFile(
     uint32_t     _matchMethod,
     std::string  _sourceImage,
-    std::vector< std::string > _templateImages,
+    const std::vector< std::string >& _templateImages,
     const bool   _showResult
 ) {
     //! <b>[load_image]</b>
