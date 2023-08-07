@@ -109,7 +109,7 @@ enum click_t {
 /// @param[in] _sourceWindowName Window handle.
 /// @return Window capture.
 ///////////////
-static cv::Mat getMatFromWindow( std::string _sourceWindowName ) {
+static cv::Mat getMatFromWindow( const std::string& _sourceWindowName ) {
     //! <b>[declare]</b>
     /// @code{.cpp}
     cv::Mat          l_sourceImage;
@@ -822,8 +822,8 @@ std::map< std::string, std::array< uint32_t, 2 > > matchingMethodFile(
 ///////////////
 std::map < std::string, std::array< uint32_t, 2 > > matchingMethodWindow(
     uint32_t    _matchMethod,
-    std::string _sourceWindowName,
-    std::vector< std::string > _templateImages,
+    const std::string& _sourceWindowName,
+    const std::vector< std::string >& _templateImages,
     const bool  _showResult
 ) {
     //! <b>[load_image]</b>
