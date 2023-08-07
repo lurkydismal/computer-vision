@@ -254,6 +254,7 @@ static cv::Mat getMatFromWindow( const std::string& _sourceWindowName ) {
 
 ///////////////
 /// @brief Get \c Window to needed window by name on \c Display .
+/// @details Recursive function
 /// @param[in] _display \c Display pointer.
 /// @param[in] _window default root window.
 /// @param[in] _windowName Window name.
@@ -1217,7 +1218,6 @@ extern "C" void leftMouseClick(
     uint32_t* _coordinateX,
     uint32_t* _coordinateY
 ) {
-
     //! <b>[declare]</b>
     /// @code{.cpp}
     Display* l_display = XOpenDisplay( NULL );
