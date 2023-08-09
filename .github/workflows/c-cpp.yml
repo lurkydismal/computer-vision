@@ -27,12 +27,14 @@ jobs:
       with:
         use-public-rspm: true
 
-    - name: Install R dependencies 
-      uses: r-lib/actions/setup-r-dependencies@11a22a908006c25fe054c4ef0ac0436b1de3edbe # v2.6.4
-      with:
-        extra-packages: |
-          any::stringr
-          any::Rcpp
+    - name: Install dependencies
+      run: |
+        remotes::install_deps(dependencies = TRUE)
+        remotes::install_cran("stringr")
+        remotes::install_cran("Rcpp")
+        devtools::install()
+      shell: Rscript {0}
+
 
     - name: Install APT Packages
       run: |
