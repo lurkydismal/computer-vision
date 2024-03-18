@@ -49,7 +49,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
 
       - name: Install R
         uses: r-lib/actions/setup-r@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3 # v2.8.1
