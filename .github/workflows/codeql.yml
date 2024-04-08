@@ -52,12 +52,12 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Install R
-        uses: r-lib/actions/setup-r@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3 # v2.8.1
+        uses: r-lib/actions/setup-r@b7e68d63e51bdf225997973e2add36d551f60f02 # v2.8.7
         with:
           use-public-rspm: true
 
       - name: Install R dependencies 
-        uses: r-lib/actions/setup-r-dependencies@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3 # v2.8.1
+        uses: r-lib/actions/setup-r-dependencies@b7e68d63e51bdf225997973e2add36d551f60f02 # v2.8.7
         with:
           extra-packages: |
             any::stringr
