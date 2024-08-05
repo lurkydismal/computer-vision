@@ -27,7 +27,7 @@ jobs:
         egress-policy: audit
 
     - name: Install R
-      uses: r-lib/actions/setup-r@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3 # v2.8.1
+      uses: r-lib/actions/setup-r@d1a6cbabea8dd2f137598ba2a70ae37ac82d7941 # v2.10.0
       with:
         use-public-rspm: true
 

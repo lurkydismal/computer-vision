@@ -44,10 +44,10 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Setup R
-        uses: r-lib/actions/setup-r@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3
+        uses: r-lib/actions/setup-r@d1a6cbabea8dd2f137598ba2a70ae37ac82d7941
 
       - name: Setup lintr
-        uses: r-lib/actions/setup-r-dependencies@0ed4cdf40958ef43a6b33b9792e07ac76c3239e3
+        uses: r-lib/actions/setup-r-dependencies@d1a6cbabea8dd2f137598ba2a70ae37ac82d7941
         with:
           extra-packages: lintr
 
